@@ -1,7 +1,8 @@
 # coding: utf-8
 #
-# Created on 22 Oct 2020
-# Author: Dylan Jones
+# This code is part of qclib.
+#
+# Copyright (c) 2021, Dylan Jones
 
 from qiskit import QuantumCircuit
 

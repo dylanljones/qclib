@@ -1,8 +1,8 @@
 # coding: utf-8
 #
-# This code is part of Disorder.
-# 
-# Copyright (c) 2020, Dylan Jones
+# This code is part of qclib.
+#
+# Copyright (c) 2021, Dylan Jones
 
 from abc import ABC, abstractmethod
 from qiskit import QuantumCircuit
