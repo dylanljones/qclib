@@ -7,7 +7,6 @@
 import numpy as np
 from typing import Optional, Union, Iterable
 
-
 _BITORDER = +1
 _ARRORDER = -1
 
@@ -228,88 +227,29 @@ def binidx(num, width: Optional[int] = None) -> Iterable[int]:
     return list(sorted(i for i, char in enumerate(f"{num:0{fill}b}"[::_ARRORDER]) if char == "1"))
 
 
-class Binary(int):
+class PauliOperators:
 
-    def __init__(self, *args, width=None, **kwargs):  # noqa
-        super().__init__()
+    def __init__(self, num):
+        self.num = num
+        self._matrices = self._init_empty()
 
-    def __new__(cls, *args, width: Optional[int] = None, **kwargs):
-        self = int.__new__(cls, *args)  # noqa
-        self.width = width
-        return self
+    def _init_empty(self):
+        shape = (self.num, 2, 2)
+        idx = np.arange(2)
+        matrices = np.zeros(shape, dtype=np.complex)
+        matrices[:, idx, idx] = 1
+        return matrices
 
-    @property
-    def num(self) -> int:
-        return int(self)
+    def _build(self, index, mat):
+        matrices = self._matrices.copy()
+        matrices[index, :, :] = mat
+        return kron(*matrices)
 
-    @property
-    def bin(self) -> bin:
-        return bin(self)
+    def x(self, index: int):
+        return self._build(index, sx)
 
-    def binstr(self, width: Optional[int] = None) -> str:
-        """ Binary representation of the state """
-        return binstr(self, width or self.width)
+    def y(self, index: int):
+        return self._build(index, sy)
 
-    def binarr(self, width: Optional[int] = None,
-               dtype: Optional[Union[int, str]] = None) -> np.ndarray:
-        """ Returns the bits of an integer as a binary array. """
-        return binarr(self, width or self.width, dtype)
-
-    def binidx(self, width: Optional[int] = None) -> Iterable[int]:
-        """ Indices of bits with value `1`. """
-        return binidx(self, width or self.width)
-
-    def count(self, value: int = 1) -> int:
-        return bin(self).count(str(value))
-
-    def get(self, bit: int) -> int:
-        return int(self & (1 << bit))
-
-    def flip(self, bit: int) -> 'Binary':
-        return self.__class__(self ^ (1 << bit), width=self.width)
-
-    def __repr__(self) -> str:
-        return f"{self.__class__.__name__}({self.binstr()})"
-
-    def __str__(self) -> str:
-        return self.binstr()
-
-    # -------------- Math operators -------------
-
-    def __add__(self, other: Union[int, 'Binary']) -> 'Binary':
-        return self.__class__(super().__add__(other), width=self.width)
-
-    def __radd__(self, other: Union[int, 'Binary']) -> 'Binary':
-        return self.__class__(super().__radd__(other), width=self.width)
-
-    def __sub__(self, other: Union[int, 'Binary']) -> 'Binary':
-        return self.__class__(super().__sub__(other), width=self.width)
-
-    def __rsub__(self, other: Union[int, 'Binary']) -> 'Binary':
-        return self.__class__(super().__rsub__(other), width=self.width)
-
-    def __mul__(self, other: Union[int, 'Binary']) -> 'Binary':
-        return self.__class__(super().__mul__(other), width=self.width)
-
-    def __rmul__(self, other: Union[int, 'Binary']) -> 'Binary':
-        return self.__class__(super().__rmul__(other), width=self.width)
-
-    # -------------- Binary operators -------------
-
-    def __invert__(self) -> 'Binary':
-        return self.__class__(super().__invert__(), width=self.width)
-
-    def __and__(self, other: Union[int, 'Binary']) -> 'Binary':
-        return self.__class__(super().__and__(other), width=self.width)
-
-    def __or__(self, other: Union[int, 'Binary']) -> 'Binary':
-        return self.__class__(super().__or__(other), width=self.width)
-
-    def __xor__(self, other: Union[int, 'Binary']) -> 'Binary':
-        return self.__class__(super().__xor__(other), width=self.width)
-
-    def __lshift__(self, other: Union[int, 'Binary']) -> 'Binary':
-        return self.__class__(super().__lshift__(other), width=self.width)
-
-    def __rshift__(self, other: Union[int, 'Binary']) -> 'Binary':
-        return self.__class__(super().__rshift__(other), width=self.width)
+    def z(self, index: int):
+        return self._build(index, sz)

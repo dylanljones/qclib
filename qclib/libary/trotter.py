@@ -5,13 +5,12 @@
 # Copyright (c) 2021, Dylan Jones
 
 from abc import ABC, abstractmethod
-from qiskit import QuantumCircuit
-from qiskit.circuit import Instruction
+from qiskit.circuit import QuantumCircuit, Instruction
 
 
 class AbstractTimeEvolutionCircuit(QuantumCircuit, ABC):
 
-    def __init__(self, *regs, dt: float, name="Trotter", **kwargs):
+    def __init__(self, *regs, dt: float, name: str = "Trotter", **kwargs):
         super().__init__(*regs, name=name)
         self._trotter = None
         self.dt = dt
