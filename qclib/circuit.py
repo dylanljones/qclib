@@ -6,118 +6,190 @@
 
 import qiskit
 import numpy as np
+from collections.abc import Mapping
+from typing import Iterator, Dict, Union
 import matplotlib.pyplot as plt
-from collections import Mapping
-from typing import Iterator, Dict, Optional, Union
-
-
-def plot_histogram(bins, hist, labels=None, padding=0.2, color=None, alpha=0.9, scale=False,
-                   max_line=True, lc="r", lw=1, rot=0, ax=None, show=False):
-    if ax is None:
-        fig, ax = plt.subplots()
-    ax.set_xlim(-0.5, len(bins) - 0.5)
-    ax.set_xticks(bins)
-    if not scale:
-        ax.set_ylim(0, 1.1)
-        ax.set_yticks(np.arange(0, 1.1, 0.2))
-    ax.set_axisbelow(True)
-    ax.grid(axis="y")
-    if labels is not None:
-        ax.set_xticklabels(labels, rotation=rot)
-    ax.bar(bins, hist, width=1 - padding, color=color, alpha=alpha)
-    if max_line:
-        ymax = np.max(hist)
-        ax.axhline(ymax, color=lc, lw=lw)
-    ax.set_xlabel("State")
-    ax.set_ylabel("p")
-    if show:
-        plt.show()
-    return ax
-
-
-def build_vector(counts: Dict[str, int], num_qubits: Optional[int] = None):
-    num_qubits = num_qubits or len(list(counts.keys())[0])
-    count_vector = np.zeros((2 ** num_qubits), dtype="int")
-    for k, v in counts.items():
-        count_vector[int(k, 2)] = v
-    return count_vector
+from qiskit.circuit import Qubit, Clbit, AncillaQubit
+from qiskit.circuit import QuantumRegister, ClassicalRegister, AncillaRegister
+from .visualization import plot_histogram
 
 
 class Result(Mapping):
 
+    MAPPING = np.array([+1, -1])
+
     def __init__(self, data: Dict[str, int]):
         super().__init__()
-        self.raw = data
+        self._data = data
+        self.num_samples = sum(x for x in data.values())
         self.num_qubits = len(list(data.keys())[0])
-        self.counts = build_vector(data, self.num_qubits)
-        self.samples = np.sum(self.counts)
-        self.labels = [f"{x:0{self.num_qubits}b}" for x in range(len(self.counts))]
+        self.size = 2 ** self.num_qubits
+        self.labels = [f"{x:0{self.num_qubits}b}" for x in range(self.size)]
 
     @property
-    def len(self):
-        return len(self.counts)
+    def raw(self):
+        return self._data
 
     @property
-    def probabilities(self) -> np.ndarray:
-        return self.counts / self.samples
+    def probabilities(self):
+        return {s: c / self.num_samples for s, c in self._data.items()}
 
     @property
-    def argmax(self) -> int:
-        return int(np.argmax(self.counts))
+    def integers(self):
+        total = self.num_samples
+        return {int(s, 2): count / total for s, count in self._data.items()}
 
     @property
-    def binary(self) -> str:
-        return self.labels[self.argmax]
+    def integer(self):
+        integer, count = 0, 0.
+        for s, c in self._data.items():
+            if c > count:
+                integer = int(s, 2)
+                count = c
+        return integer
 
     @property
-    def value(self) -> int:
-        return int(self.binary, 2)
+    def count_vector(self):
+        arr = np.zeros(self.size, dtype=np.int64)
+        for k, v in self._data.items():
+            arr[int(k, 2)] = v
+        return arr
 
-    def __getitem__(self, k: int) -> int:
-        return self.counts[k]
+    @property
+    def probability_vector(self):
+        return self.count_vector / self.num_samples
 
     def __len__(self) -> int:
-        return len(self.counts)
+        return len(self._data)
 
-    def __iter__(self) -> Iterator[int]:
-        return iter(self.counts)
+    def __getitem__(self, k: str) -> int:
+        return self._data[k]
 
-    def histogram(self, normalize=True):
-        hist = self.probabilities if normalize else self.counts
-        return np.arange(self.__len__()), hist
-
-    def plot_histogram(self, show=True, padding=0.2, color=None, alpha=0.9,
-                       scale=False, labels=None, max_line=True, lc="r", lw=1,
-                       binary=True, rot=0, fig=None, ax=None):
-        bins, hist = self.histogram()
-        if not labels:
-            label_items = self.labels if binary else range(len(bins))
-            labels = [r"$|$" + str(x) + r"$\rangle$" for x in label_items]
-        labels = labels or [r"$|$" + str(x) + r"$\rangle$" for x in self.labels]
-        return plot_histogram(bins, hist, labels, padding, color, alpha, scale,
-                              max_line, lc, lw, rot, ax, show)
-
-    def pformat(self, decimals: int = 2) -> str:
-        w = decimals + 2
-        labelstr = "[" + "  ".join(f"{x:^{w}}" for x in self.labels) + "]"
-        valuestr = "[" + "  ".join(f"{x:.{decimals}f}" for x in self.probabilities) + "]"
-        return labelstr + "\n" + valuestr
+    def __iter__(self) -> Iterator[str]:
+        return iter(self._data)
 
     def __repr__(self) -> str:
-        return f"{self.__class__.__name__}({self.raw})"
+        return f"{self.__class__.__name__}({self._data})"
+
+    def max(self):
+        return max(list(self._data.values()))
+
+    def argmax(self, index: bool = False):
+        arg, max_count = 0, 0
+        for key, counts in self._data.items():
+            if counts > max_count:
+                arg = key
+        if index:
+            arg = int(arg, 2)
+        return arg
+
+    def accumulate_counts(self, qubit: int):
+        counts = {"0": 0, "1": 0}
+        for state, num in self._data.items():
+            counts[state[qubit]] += num
+        return np.array([counts["0"], counts["1"]])
+
+    def accumulate_probabilities(self, qubit: int = 0):
+        return self.accumulate_counts(qubit) / self.num_samples
+
+    def expectation(self, qubit: int = 0):
+        probs = self.accumulate_probabilities(qubit)
+        return np.sum(self.MAPPING * probs)
+
+    def expectation_values(self):
+        return np.array([self.expectation(i) for i in range(self.num_qubits)])
+
+    def plot_histogram(self, **kwargs):
+        return plot_histogram(self._data, **kwargs)
 
 
-def run(qc, shots=1024, backend=None):
+# noinspection PyBroadException
+def run(qc, shots: int = 1024, backend: Union[str, qiskit.providers.Backend] = None,
+        gpu: bool = True):
     if backend is None:
         backend = qiskit.Aer.get_backend("qasm_simulator")
     elif isinstance(backend, str):
+        if backend == "qasm":
+            backend = "qasm_simulator"
+        else:
+            backend = "aer_simulator_" + backend
         backend = qiskit.Aer.get_backend(backend)
-    # result = qiskit.execute(qc, backend, shots=shots).result()
 
+    # Use gpu for simulators
+    if gpu:
+        try:
+            backend.set_options(device='GPU')
+        except Exception:
+            pass
+
+    result = qiskit.execute(qc, backend, shots=shots).result()
     # assemble the circuit
-    experiments = qiskit.transpile(qc, backend)
-    qobj = qiskit.assemble(experiments, shots=shots)
+    # experiments = qiskit.transpile(qc, backend)
+    # qobj = qiskit.assemble(experiments, shots=shots)
 
     # run the circuit on the backend
-    result = backend.run(qobj).result()
+    # result = backend.run(qobj).result()
     return Result(result.get_counts(qc))
+
+
+# noinspection PyUnresolvedReferences
+def measure(qc: qiskit.QuantumCircuit, qbits, cbits, basis="z"):
+    if not hasattr(qbits, "__len__"):
+        qbits = [qbits]
+    if not hasattr(cbits, "__len__"):
+        cbits = [cbits]
+
+    if basis == "x":
+        # Measure in x (hadamard) basis
+        for bit in qbits:
+            qc.h(bit)
+    elif basis == "y":
+        # Measure in y (circular) basis
+        for bit in qbits:
+            qc.sdg(bit)
+            qc.h(bit)
+    elif basis == "z":
+        # Measure in z (computational) basis
+        pass
+    else:
+        raise ValueError(f"Can't measure in {basis} basis! Valid arguments: x, y, z")
+
+    qc.measure(qbits, cbits)
+
+
+# noinspection PyUnresolvedReferences
+def measure_all(qc: qiskit.QuantumCircuit, basis="z"):
+    if basis == "x":
+        # Measure in x (hadamard) basis
+        for bit in qc.qubits:
+            qc.h(bit)
+    elif basis == "y":
+        # Measure in y (circular) basis
+        for bit in qc.qubits:
+            qc.sdg(bit)
+            qc.h(bit)
+    elif basis == "z":
+        # Measure in z (computational) basis
+        pass
+    else:
+        raise ValueError(f"Can't measure in {basis} basis! Valid arguments: x, y, z")
+
+    qc.measure_all()
+
+
+class QuantumCircuit(qiskit.QuantumCircuit):
+
+    def measure_basis(self, qbits, cbits, basis="z"):
+        return measure(self, qbits, cbits, basis)
+
+    def measureall_basis(self, basis="z"):
+        return measure_all(self, basis)
+
+    def run(self, shots: int = 1024, backend: Union[str, qiskit.providers.Backend] = None,
+            gpu: bool = True):
+        return run(self, shots, backend, gpu)
+
+    def plot(self, show=True, **kwargs):
+        self.draw("mpl", **kwargs)
+        if show:
+            plt.show()

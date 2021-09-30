@@ -4,8 +4,12 @@
 # 
 # Copyright (c) 2021, Dylan Jones
 
-from ._utils import *
 from ._logging import logger
-from .circuit import run, Result
+from .math import *
+from .circuit import (
+    Qubit, Clbit, AncillaQubit,
+    QuantumRegister, ClassicalRegister, AncillaRegister,
+    QuantumCircuit, Result, run, measure, measure_all
+)
 
 from .vqe import VariationalSolver, VQE
