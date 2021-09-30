@@ -105,7 +105,7 @@ class Result(Mapping):
 
 # noinspection PyBroadException
 def run(qc, shots: int = 1024, backend: Union[str, qiskit.providers.Backend] = None,
-        gpu: bool = True):
+        gpu: bool = False):
     if backend is None:
         backend = qiskit.Aer.get_backend("qasm_simulator")
     elif isinstance(backend, str):
@@ -186,7 +186,7 @@ class QuantumCircuit(qiskit.QuantumCircuit):
         return measure_all(self, basis)
 
     def run(self, shots: int = 1024, backend: Union[str, qiskit.providers.Backend] = None,
-            gpu: bool = True):
+            gpu: bool = False):
         return run(self, shots, backend, gpu)
 
     def plot(self, show=True, **kwargs):

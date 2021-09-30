@@ -11,7 +11,7 @@ from typing import Union, Dict, Tuple
 
 def plot_histogram(counts: Dict[str, int], color: Union[str, float] = None, alpha: float = 0.9,
                    width: float = 0.8, grid: str = None, bar_labels: bool = True, title: str = None,
-                   normalize: bool = True, compress: bool = False, number_to_keep: int = 10,
+                   normalize: bool = True, compress: bool = False, number_to_keep: int = 32,
                    figsize: Tuple[float, float] = (7, 5), ax: plt.Axes = None) -> plt.Axes:
     """Plot a histogram of measurement data.
 
