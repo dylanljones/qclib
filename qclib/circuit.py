@@ -126,7 +126,7 @@ def run(qc, shots: int = 1024, backend: Union[str, qiskit.providers.Backend] = N
     transpiled = qiskit.transpile(qc, backend=backend)
     if params is not None:
         transpiled = transpiled.bind_parameters(params)
-    qobj = qiskit.assemble(transpiled, shots=shots)
+    qobj = qiskit.assemble(transpiled, shots=shots, backend=backend)
 
     # run the circuit on the backend
     # result = qiskit.execute(qc, backend, shots=shots).result()
