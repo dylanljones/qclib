@@ -105,7 +105,7 @@ class Result(Mapping):
 
 # noinspection PyBroadException
 def run(qc, shots: int = 1024, backend: Union[str, qiskit.providers.Backend] = None,
-        gpu: bool = False):
+        params: Union[dict, list] = None, gpu: bool = False):
     if backend is None:
         backend = qiskit.Aer.get_backend("qasm_simulator")
     elif isinstance(backend, str):
@@ -122,14 +122,16 @@ def run(qc, shots: int = 1024, backend: Union[str, qiskit.providers.Backend] = N
         except Exception:
             pass
 
-    result = qiskit.execute(qc, backend, shots=shots).result()
     # assemble the circuit
-    # experiments = qiskit.transpile(qc, backend)
-    # qobj = qiskit.assemble(experiments, shots=shots)
+    transpiled = qiskit.transpile(qc, backend=backend)
+    if params is not None:
+        transpiled = transpiled.bind_parameters(params)
+    qobj = qiskit.assemble(transpiled, shots=shots)
 
     # run the circuit on the backend
-    # result = backend.run(qobj).result()
-    return Result(result.get_counts(qc))
+    # result = qiskit.execute(qc, backend, shots=shots).result()
+    result = backend.run(qobj).result()
+    return Result(result.get_counts(transpiled))
 
 
 # noinspection PyUnresolvedReferences
@@ -186,8 +188,8 @@ class QuantumCircuit(qiskit.QuantumCircuit):
         return measure_all(self, basis)
 
     def run(self, shots: int = 1024, backend: Union[str, qiskit.providers.Backend] = None,
-            gpu: bool = False):
-        return run(self, shots, backend, gpu)
+            params: dict = None, gpu: bool = False):
+        return run(self, shots, backend, params, gpu)
 
     def plot(self, show=True, **kwargs):
         self.draw("mpl", **kwargs)
