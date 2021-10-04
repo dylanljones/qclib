@@ -10,3 +10,5 @@ from .basic import (
     decrement
 )
 from .trotter import AbstractTimeEvolutionCircuit
+from .interferometer import AbstractInterferometer, TrotterInterferometer
+from . import gates, su

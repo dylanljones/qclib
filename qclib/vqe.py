@@ -9,7 +9,7 @@ import numpy as np
 import scipy.optimize
 from scipy import optimize
 from abc import ABC, abstractmethod
-from typing import Union, Optional, Sequence, Iterable
+from typing import Union, Optional, Sequence, Iterable, Callable
 from .circuit import run, Result
 from .libary.su import su_circuit
 
@@ -125,7 +125,7 @@ class VariationalSolver(ABC):
         This method is used by the optimizer and shouldn't be called by the user.
         """
         res = self.run(args)
-        return self.cost_function(res.probabilities)
+        return self.cost_function(res.probability_vector)
 
     def optimize(self, tol: Optional[float] = None,
                  x0: Optional[Union[Sequence[float], np.ndarray]] = None,
@@ -133,6 +133,7 @@ class VariationalSolver(ABC):
                  maxiter: Optional[int] = 1000,
                  method: Optional[str] = "COBYLA",
                  raise_error: Optional[bool] = True,
+                 callback: Callable = None,
                  **options) -> scipy.optimize.OptimizeResult:
         """Optimizes the ``QuantumCircuit``-ansatz defined by the ``build_circuit``-method.
 
@@ -152,6 +153,8 @@ class VariationalSolver(ABC):
             Type of solver used for optimizing.
         raise_error : bool, optional
             If ``True`` an exception is raised if the optimization was unsuccessful.
+        callback : callable, optional
+            Called after each iteration.
         **options
             Solver specific options.
 
@@ -171,7 +174,7 @@ class VariationalSolver(ABC):
 
         # Optimize circuit
         sol = optimize.minimize(self._func, x0=x0, method=method,
-                                tol=tol, bounds=bounds,
+                                tol=tol, bounds=bounds, callback=callback,
                                 options={"maxiter": maxiter, **options})
         if raise_error and not sol.success:
             raise OptimizationError(sol)
