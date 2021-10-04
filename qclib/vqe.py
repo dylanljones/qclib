@@ -193,18 +193,18 @@ class VariationalSolver(ABC):
 
     def get_optimized_probabilities(self) -> np.ndarray:
         """np.ndarray : Runs the optimized circuit and returns the probability distribution."""
-        return self.run_optimized().probabilities
+        return self.run_optimized().probability_vector
 
 
 class VQE(VariationalSolver):
 
-    def __init__(self, target, rot, layers=2, entangle="linear", final_rot=False,
+    def __init__(self, target,  layers=2, rot="y", entangle="linear", final_rot=False,
                  shots=1024, backend=None):
         super().__init__(shots, backend)
         self.num_qubits = int(np.log2(target.shape[0]))
         self.layers = layers
         self.entangle_mode = entangle
-        self.rot_axis = list(rot)
+        self.rot_axis = [c for c in rot] if isinstance(rot, str) else list(rot)
         self.final_rot = final_rot
 
         self.target = target

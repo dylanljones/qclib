@@ -229,7 +229,7 @@ def ptrace(arr: np.ndarray, n: int, m: int, index: int) -> np.ndarray:
     if n * m != arr.shape[0]:
         raise ValueError("Sizes of sub-systems don't add up to shape of array")
 
-    reshaped = arr.reshape(n, m, n, m)
+    reshaped = arr.reshape((n, m, n, m))
     if index == 0:
         return np.trace(reshaped, axis1=0, axis2=2)
     else:
@@ -277,7 +277,8 @@ def binstr(num: int, width: Optional[int] = None) -> str:
     return f"{num:0{fill}b}"
 
 
-def binarr(num: int, width: Optional[int] = None, dtype: Optional[Union[int, str]] = None) -> np.ndarray:
+def binarr(num: int, width: Optional[int] = None,
+           dtype: Optional[Union[int, str]] = None) -> np.ndarray:
     """ Returns the bits of an integer as a binary array.
 
     Parameters
@@ -315,11 +316,41 @@ def binidx(num: int, width: Optional[int] = None) -> Iterable[int]:
     return list(sorted(i for i, char in enumerate(f"{num:0{fill}b}"[::-1]) if char == "1"))
 
 
+class PauliView:
+
+    def __init__(self, matrices, mat):
+        self._matrices = matrices
+        self._mat = mat
+
+    def _build(self, index, mat):
+        matrices = self._matrices.copy()
+        matrices[index, :, :] = mat
+        return kron(*matrices)
+
+    def __getitem__(self, index):
+        return self._build(index, self._mat)
+
+    def __call__(self, index):
+        return self._build(index, self._mat)
+
+
 class PauliOperators:
 
     def __init__(self, num):
         self.num = num
         self._matrices = self._init_empty()
+
+    @property
+    def x(self):
+        return PauliView(self._matrices, sx)
+
+    @property
+    def y(self):
+        return PauliView(self._matrices, sy)
+
+    @property
+    def z(self):
+        return PauliView(self._matrices, sz)
 
     def _init_empty(self):
         shape = (self.num, 2, 2)
@@ -332,12 +363,3 @@ class PauliOperators:
         matrices = self._matrices.copy()
         matrices[index, :, :] = mat
         return kron(*matrices)
-
-    def x(self, index: int):
-        return self._build(index, sx)
-
-    def y(self, index: int):
-        return self._build(index, sy)
-
-    def z(self, index: int):
-        return self._build(index, sz)
