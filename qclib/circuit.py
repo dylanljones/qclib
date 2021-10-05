@@ -122,15 +122,16 @@ def run(qc, shots: int = 1024, backend: Union[str, qiskit.providers.Backend] = N
         except Exception:
             pass
 
-    # assemble the circuit
+    # transpile the circuit
     transpiled = qiskit.transpile(qc, backend=backend)
     if params is not None:
         transpiled = transpiled.bind_parameters(params)
-    qobj = qiskit.assemble(transpiled, shots=shots, backend=backend)
 
-    # run the circuit on the backend
     # result = qiskit.execute(qc, backend, shots=shots).result()
-    result = backend.run(qobj).result()
+
+    # assemble and run the circuit on the backend
+    # qobj = qiskit.assemble(transpiled, shots=shots, backend=backend)
+    result = backend.run(transpiled).result()
     return Result(result.get_counts(transpiled))
 
 
