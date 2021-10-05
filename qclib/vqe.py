@@ -8,10 +8,15 @@ import qiskit
 import numpy as np
 import scipy.optimize
 from scipy import optimize
+import matplotlib.pyplot as plt
 from abc import ABC, abstractmethod
 from typing import Union, Optional, Sequence, Iterable, Callable
-from .circuit import run, Result
-from .libary.su import su_circuit
+from .circuit import init_backend, run_transpiled, run, Result
+from .libary.su import efficient_su
+
+
+class VariationalError(Exception):
+    pass
 
 
 class OptimizationError(Exception):
@@ -35,9 +40,13 @@ class VariationalSolver(ABC):
     """
     def __init__(self, shots: Optional[int] = 1024,
                  backend: Optional[qiskit.providers.Backend] = None):
-        self.backend = backend
-        self.shots = shots
+        self.shots = 0
+        self.backend = None
+        self._transpiled = None
         self._sol = None
+
+        self.set_backend(backend)
+        self.set_shots(shots)
 
     @property
     def sol(self) -> scipy.optimize.OptimizeResult:
@@ -64,21 +73,17 @@ class VariationalSolver(ABC):
         backend : str or qiskit.providers.Backend, optional
             The backend for running the experiments. See ``run`` for the default backend.
         """
-        self.backend = backend
+        self.backend = init_backend(backend)
 
     @abstractmethod
-    def num_params(self) -> int:
-        """int : Retunrs the number of controllable parameters of the circuit."""
-        pass
-
-    @abstractmethod
-    def build_circuit(self, args: Iterable[float]) -> qiskit.QuantumCircuit:
+    def build_circuit(self, args: Iterable[float] = None) -> qiskit.QuantumCircuit:
         """Constructs the ``QuantumCircuit``-ansatz of the solver.
 
         Parameters
         ----------
-        args : Iterable of float
+        args : Iterable of float, optional
             An iterator of the circuit parameters. These parameters are used by the optimizer.
+            If no arguments are given a parametrized circuit is constructed.
 
         Returns
         -------
@@ -103,6 +108,13 @@ class VariationalSolver(ABC):
         """
         pass
 
+    def transpile(self):
+        """Builds and transpiles the ``QuantumCircuit``-ansatz of the solver."""
+        if self._transpiled is not None:
+            return
+        qc = self.build_circuit()
+        self._transpiled = qiskit.transpile(qc, backend=self.backend)
+
     def run(self, args: Sequence[float]) -> Result:
         """Runs the ``QuantumCircuit``-ansatz with the passed arguments.
 
@@ -116,8 +128,10 @@ class VariationalSolver(ABC):
         result : Result
             The result of running the experiment.
         """
-        qc = self.build_circuit(iter(args))
-        return run(qc, shots=self.shots, backend=self.backend)
+        try:
+            return run_transpiled(self._transpiled, self.backend, shots=self.shots, params=args)
+        except AttributeError:
+            raise VariationalError("Circuit has not yet been transpiled!")
 
     def _func(self, args):
         """Runs the ``QuantumCircuit`` and computes the cost value.
@@ -168,9 +182,12 @@ class VariationalSolver(ABC):
         sol : scipy.optimize.OptimizeResult
             The optimization result of the ``QuantumCircuit``-anatz.
         """
+        # make sure circuit is transpiled
+        self.transpile()
+
         # Prepare arguments
         if x0 is None:
-            x0 = np.random.uniform(0, np.pi, size=self.num_params())
+            x0 = np.random.uniform(0, np.pi, size=self._transpiled.num_parameters)
 
         # Optimize circuit
         sol = optimize.minimize(self._func, x0=x0, method=method,
@@ -195,17 +212,21 @@ class VariationalSolver(ABC):
         """np.ndarray : Runs the optimized circuit and returns the probability distribution."""
         return self.run_optimized().probability_vector
 
+    def plot_circuit(self):
+        qc = self.build_circuit()
+        qc.draw("mpl")
 
-class VQE(VariationalSolver):
 
-    def __init__(self, target,  layers=2, rot="y", entangle="linear", final_rot=False,
+class VQEFitter(VariationalSolver):
+
+    def __init__(self, target,  layers=2, gates="y", entangle="linear", final=False,
                  shots=1024, backend=None):
         super().__init__(shots, backend)
         self.num_qubits = int(np.log2(target.shape[0]))
         self.layers = layers
         self.entangle_mode = entangle
-        self.rot_axis = [c for c in rot] if isinstance(rot, str) else list(rot)
-        self.final_rot = final_rot
+        self.gates = list(gates.split(" ")) if isinstance(gates, str) else list(gates)
+        self.final_layer = final
 
         self.target = target
 
@@ -213,18 +234,20 @@ class VQE(VariationalSolver):
         self.target = target
         self._sol = None
 
-    def num_params(self) -> int:
-        layers = self.layers
-        if self.final_rot:
-            layers += 1
-        return len(self.rot_axis) * layers * self.num_qubits
-
     def cost_function(self, probabilities):
         return np.sum(np.abs(probabilities - self.target))
 
-    def build_circuit(self, args) -> qiskit.QuantumCircuit:
-        params = iter(args)
+    def build_circuit(self, args: Iterable[float] = None) -> qiskit.QuantumCircuit:
         qc = qiskit.QuantumCircuit(self.num_qubits)
-        su_circuit(qc, params, self.layers, self.rot_axis, self.entangle_mode, self.final_rot)
+        efficient_su(qc, self.layers, self.gates, self.entangle_mode, self.final_layer, params=args)
         qc.measure_all()
         return qc
+
+    def plot_histograms(self):
+        probs_opt = self.get_optimized_probabilities()
+
+        fig, ax = plt.subplots()
+        x = np.arange(self.target.shape[0])
+        ax.bar(x, self.target, alpha=0.2, color="k", label="Target")
+        ax.bar(x, probs_opt, alpha=0.5, label="Optimized")
+        ax.legend()

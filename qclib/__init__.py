@@ -13,4 +13,4 @@ from .circuit import (
     QuantumCircuit, Result, run, measure, measure_all
 )
 
-from .vqe import VariationalSolver, VQE
+from .vqe import VariationalSolver, VQEFitter

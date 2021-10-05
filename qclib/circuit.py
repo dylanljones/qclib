@@ -7,7 +7,7 @@
 import qiskit
 import numpy as np
 from collections.abc import Mapping
-from typing import Iterator, Dict, Union
+from typing import Iterator, Dict, Union, Sequence
 import matplotlib.pyplot as plt
 from qiskit.circuit import Qubit, Clbit, AncillaQubit
 from qiskit.circuit import QuantumRegister, ClassicalRegister, AncillaRegister
@@ -104,8 +104,63 @@ class Result(Mapping):
 
 
 # noinspection PyBroadException
+def transpile(qc, backend: Union[str, qiskit.providers.Backend] = None, gpu: bool = False):
+    if backend is None:
+        backend = qiskit.Aer.get_backend("qasm_simulator")
+    elif isinstance(backend, str):
+        if backend == "qasm":
+            backend = "qasm_simulator"
+        else:
+            backend = "aer_simulator_" + backend
+        backend = qiskit.Aer.get_backend(backend)
+
+    # Use gpu for simulators
+    if gpu:
+        try:
+            backend.set_options(device='GPU')
+        except Exception:
+            pass
+
+    # transpile the circuit
+    transpiled = qiskit.transpile(qc, backend=backend)
+    return transpiled
+
+
+# noinspection PyBroadException
+def init_backend(backend: Union[str, qiskit.providers.Backend] = None,
+                 gpu: bool = False) -> qiskit.providers.Backend:
+    if backend is None:
+        backend = qiskit.Aer.get_backend("qasm_simulator")
+    elif isinstance(backend, str):
+        if backend == "qasm":
+            backend = "qasm_simulator"
+        else:
+            backend = "aer_simulator_" + backend
+        backend = qiskit.Aer.get_backend(backend)
+
+    # Use gpu for simulators
+    if gpu:
+        try:
+            backend.set_options(device='GPU')
+        except Exception:
+            pass
+    return backend
+
+
+def run_transpiled(transpiled, backend: qiskit.providers.Backend, shots: int = 1024,
+                   params: Union[dict, Sequence[float]] = None):
+    """Run a transpiled `QuantumCircuit`."""
+    if params is not None:
+        transpiled = transpiled.bind_parameters(params)
+
+    # noinspection PyUnresolvedReferences
+    result = backend.run(transpiled, shots=shots).result()
+    return Result(result.get_counts(transpiled))
+
+
+# noinspection PyBroadException
 def run(qc, shots: int = 1024, backend: Union[str, qiskit.providers.Backend] = None,
-        params: Union[dict, list] = None, gpu: bool = False):
+        params: Union[dict, Sequence[float]] = None, gpu: bool = False):
     if backend is None:
         backend = qiskit.Aer.get_backend("qasm_simulator")
     elif isinstance(backend, str):
@@ -131,7 +186,7 @@ def run(qc, shots: int = 1024, backend: Union[str, qiskit.providers.Backend] = N
 
     # assemble and run the circuit on the backend
     # qobj = qiskit.assemble(transpiled, shots=shots, backend=backend)
-    result = backend.run(transpiled).result()
+    result = backend.run(transpiled, shots=shots).result()
     return Result(result.get_counts(transpiled))
 
 
