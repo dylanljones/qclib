@@ -84,3 +84,26 @@ class AbstractTimeEvolutionCircuit(QuantumCircuit, ABC):
             qubits = self.qubits[:]
         for _ in range(num_steps):
             self.trotter_step(qubits)
+
+
+def build_tevo_circuit(init: QuantumCircuit, step: QuantumCircuit, num_steps: int):
+    qc = QuantumCircuit(step.num_qubits)
+    qc.append(init.to_instruction(), qc.qubits[:])
+    step_ins = step.to_instruction()
+    for _ in range(num_steps):
+        qc.append(step_ins, qc.qubits[:])
+    return qc
+
+
+def build_tevo_step_circuits(init: QuantumCircuit, step: QuantumCircuit, max_steps: int):
+    init_ins = init.to_instruction()
+    step_ins = step.to_instruction()
+
+    circuits = list()
+    for i in range(max_steps):
+        qc = QuantumCircuit(step.num_qubits)
+        qc.append(init_ins, qc.qubits[:])
+        for _ in range(i):
+            qc.append(step_ins, qc.qubits[:])
+        circuits.append(qc)
+    return circuits

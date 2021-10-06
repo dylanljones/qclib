@@ -113,6 +113,7 @@ class VariationalSolver(ABC):
         if self._transpiled is not None:
             return
         qc = self.build_circuit()
+        qc.measure_all()
         self._transpiled = qiskit.transpile(qc, backend=self.backend)
 
     def run(self, args: Sequence[float]) -> Result:
@@ -240,7 +241,7 @@ class VQEFitter(VariationalSolver):
     def build_circuit(self, args: Iterable[float] = None) -> qiskit.QuantumCircuit:
         qc = qiskit.QuantumCircuit(self.num_qubits)
         efficient_su(qc, self.layers, self.gates, self.entangle_mode, self.final_layer, params=args)
-        qc.measure_all()
+        # qc.measure_all()
         return qc
 
     def plot_histograms(self):
