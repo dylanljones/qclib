@@ -33,7 +33,7 @@ class AbstractInterferometer(ABC):
         """Adds gates to evolve the initial state in time."""
         pass
 
-    def _build(self, alpha="x", beta="x", gamma="z"):
+    def build_circuit(self, alpha="x", beta="x", gamma="z"):
         qc = qiskit.QuantumCircuit(self.qreg, self.areg, self.creg)
         anc = qc.ancillas[0]
 
@@ -59,7 +59,7 @@ class AbstractInterferometer(ABC):
 
     def measure(self, alpha="x", beta="x", basis="z", shots=0):
         shots = shots or self.shots
-        qc = self._build(alpha, beta, basis)
+        qc = self.build_circuit(alpha, beta, basis)
         return run(qc, shots=shots, gpu=False)
 
     def measure_xx(self, basis="z"):
