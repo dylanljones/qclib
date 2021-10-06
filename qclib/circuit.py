@@ -103,27 +103,20 @@ class Result(Mapping):
         return plot_histogram(self._data, **kwargs)
 
 
-# noinspection PyBroadException
-def transpile(qc, backend: Union[str, qiskit.providers.Backend] = None, gpu: bool = False):
-    if backend is None:
-        backend = qiskit.Aer.get_backend("qasm_simulator")
-    elif isinstance(backend, str):
-        if backend == "qasm":
-            backend = "qasm_simulator"
-        else:
-            backend = "aer_simulator_" + backend
-        backend = qiskit.Aer.get_backend(backend)
+def check_measurement(qc):
+    """Checks if one or more measurements are performed on the circuit."""
+    instructions = list(qc.to_instruction().definition)
+    for ins in instructions:
+        obj = ins[0]
+        if isinstance(obj, qiskit.circuit.Measure):
+            return True
+    return False
 
-    # Use gpu for simulators
-    if gpu:
-        try:
-            backend.set_options(device='GPU')
-        except Exception:
-            pass
 
-    # transpile the circuit
-    transpiled = qiskit.transpile(qc, backend=backend)
-    return transpiled
+def ensure_measurement(qc, inplace=True):
+    """Adds measurements to all qubits if no other measurmeents are performed."""
+    if not check_measurement(qc):
+        qc.measure_all(inplace=inplace)
 
 
 # noinspection PyBroadException
@@ -147,15 +140,29 @@ def init_backend(backend: Union[str, qiskit.providers.Backend] = None,
     return backend
 
 
+def transpile(circuits, backend):
+    for qc in circuits:
+        ensure_measurement(qc)
+    return qiskit.transpile(circuits, backend)
+
+
 def run_transpiled(transpiled, backend: qiskit.providers.Backend, shots: int = 1024,
                    params: Union[dict, Sequence[float]] = None):
     """Run a transpiled `QuantumCircuit`."""
     if params is not None:
-        transpiled = transpiled.bind_parameters(params)
+        if isinstance(transpiled, Sequence):
+            transpiled = [t.bind_parameters(p) for t, p in zip(transpiled, params)]
+        else:
+            transpiled = transpiled.bind_parameters(params)
 
     # noinspection PyUnresolvedReferences
-    result = backend.run(transpiled, shots=shots).result()
-    return Result(result.get_counts(transpiled))
+    job = backend.run(transpiled, shots=shots)
+    counts = job.result().get_counts()
+    if isinstance(transpiled, qiskit.QuantumCircuit):
+        results = Result(counts)
+    else:
+        results = [Result(x) for x in counts]
+    return results
 
 
 # noinspection PyBroadException

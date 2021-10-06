@@ -10,7 +10,7 @@ from .math import *
 from .circuit import (
     Qubit, Clbit, AncillaQubit,
     QuantumRegister, ClassicalRegister, AncillaRegister,
-    QuantumCircuit, Result, run, measure, measure_all
+    QuantumCircuit, Result, run, init_backend, transpile, run_transpiled, measure, measure_all
 )
 
 from .vqe import VariationalSolver, VQEFitter
