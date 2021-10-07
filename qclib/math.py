@@ -32,6 +32,32 @@ PROJECTIONS = [P0, P1]
 
 transpose = partial(np.swapaxes, axis1=-2, axis2=-1)
 
+_EMPTY = None
+
+
+def empty_single_qubit_layer(num_qubits: int) -> np.ndarray:
+    """Generates a list of identity matrices to be used to fill with single qubit gate matrices.
+
+    Parameters
+    ----------
+    num_qubits : int
+        The number of qubits.
+
+    Returns
+    -------
+    out : (N, 2, 2) np.ndarray
+        An array of single qubit identity matrices.
+    """
+    global _EMPTY
+
+    if _EMPTY is None or _EMPTY.shape[0] != num_qubits:
+        # Construct empty matrix array
+        _EMPTY = np.zeros((num_qubits, 2, 2), dtype=np.complex64)
+        idx = [0, 1]
+        _EMPTY[:, idx, idx] = 1
+
+    return _EMPTY.copy()
+
 
 def abs2(arr) -> np.ndarray:
     """Computes the element-wise absolute square of the input array.
@@ -582,13 +608,7 @@ class PauliOperators:
         return PauliView(self._matrices, sz)
 
     def _init_empty(self):
-        shape = (self.num, 2, 2)
         idx = np.arange(2)
-        matrices = np.zeros(shape, dtype=np.complex)
+        matrices = np.zeros((self.num, 2, 2), dtype=np.complex)
         matrices[:, idx, idx] = 1
         return matrices
-
-    def _build(self, index, mat):
-        matrices = self._matrices.copy()
-        matrices[index, :, :] = mat
-        return kron(*matrices)
