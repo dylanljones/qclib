@@ -511,6 +511,11 @@ def get_ground_state(eigvals, eigvecs):
     return gs_energy, gs
 
 
+def compute_ground_state(hamiltonian):
+    eigvals, eigvecs = np.linalg.eigh(hamiltonian)
+    return get_ground_state(eigvals, eigvecs)
+
+
 # =========================================================================
 
 
