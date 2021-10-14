@@ -18,14 +18,14 @@ sm = 0.5 * (sx - 1j * sy)
 def creation_operator_jw(num_qubits, idx):
     arrays = empty_single_qubit_layer(num_qubits)
     arrays[:idx] = sz   # pauli string
-    arrays[idx] = sm        # S⁻
+    arrays[idx] = sm    # S⁻
     return kron(arrays)
 
 
 def annihilation_operator_jw(num_qubits, idx):
     arrays = empty_single_qubit_layer(num_qubits)
     arrays[:idx] = sz   # pauli string
-    arrays[idx] = sp        # S⁺
+    arrays[idx] = sp    # S⁺
     return kron(arrays)
 
 
