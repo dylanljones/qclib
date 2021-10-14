@@ -30,3 +30,7 @@ def onsite_terms(num_qubits, eps):
     terms = empty_single_qubit_layer(num_qubits)
     terms[:] = - eps * sz / 2
     return kron(terms).real
+
+
+def tight_binding_chain(num_sites, eps=0., hop=1.):
+    return onsite_terms(num_sites, eps) + hopping_terms_chain(num_sites, hop)

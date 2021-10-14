@@ -44,16 +44,24 @@ class VariationalSolver(ABC):
         self.backend = None
         self._transpiled = None
         self._sol = None
+        self._popt = None
 
         self.set_backend(backend)
         self.set_shots(shots)
 
     @property
     def sol(self) -> scipy.optimize.OptimizeResult:
-        """scipy.optimize.OptimizeResult : The optimization result. """
+        """scipy.optimize.OptimizeResult : The optimization result."""
         if self._sol is None:
             raise ValueError("Circuit has not been optimized yet!")
         return self._sol
+
+    @property
+    def popt(self):
+        """np.ndarray : The optimized parameters of the circuit."""
+        if self._popt is None:
+            raise ValueError("Circuit has not been optimized yet!")
+        return self._popt
 
     def set_shots(self, shots: int) -> None:
         """Sets the number of shots for running the circuit.
@@ -93,13 +101,13 @@ class VariationalSolver(ABC):
         pass
 
     @abstractmethod
-    def cost_function(self, probabilities) -> Union[np.ndarray, float]:
+    def cost_function(self, result: Result) -> Union[np.ndarray, float]:
         """Computes the cost function that is minimized by the optimizer.
 
         Parameters
         ----------
-        probabilities : np.ndarray
-            The probability distribution of the measurement result of the ``QuantumCircuit``.
+        result : Result
+            The measurement result of the ``QuantumCircuit``.
 
         Returns
         -------
@@ -113,7 +121,6 @@ class VariationalSolver(ABC):
         if self._transpiled is not None:
             return
         qc = self.build_circuit()
-        qc.measure_all()
         self._transpiled = qiskit.transpile(qc, backend=self.backend)
 
     def run(self, args: Sequence[float]) -> Result:
@@ -140,7 +147,7 @@ class VariationalSolver(ABC):
         This method is used by the optimizer and shouldn't be called by the user.
         """
         res = self.run(args)
-        return self.cost_function(res.probability_vector)
+        return self.cost_function(res)
 
     def optimize(self, tol: Optional[float] = None,
                  x0: Optional[Union[Sequence[float], np.ndarray]] = None,
@@ -199,15 +206,18 @@ class VariationalSolver(ABC):
 
         # Save and return optimization result
         self._sol = sol
+        self._popt = sol.x
         return sol
 
     def run_optimized(self) -> Result:
         """Result : Runs the circuit and returns the result using the optimized parameters."""
-        return self.run(self.sol.x)
+        return self.run(self._popt)
 
     def get_optimized_circuit(self) -> qiskit.QuantumCircuit:
         """QuantumCircuit : Construct the ``QuantumCircuit`` with the optimized parameters."""
-        return self.build_circuit(self.sol.x)
+        qc = self.build_circuit(self._popt)
+        qc.remove_final_measurements()
+        return qc
 
     def get_optimized_probabilities(self) -> np.ndarray:
         """np.ndarray : Runs the optimized circuit and returns the probability distribution."""
@@ -216,6 +226,15 @@ class VariationalSolver(ABC):
     def plot_circuit(self):
         qc = self.build_circuit()
         qc.draw("mpl")
+
+    def save_popt(self, file):
+        np.savez(file, popt=self._popt)
+
+    def load_popt(self, file):
+        data = np.load(file)
+        popt = data["popt"]
+        self.transpile()
+        self._popt = popt
 
 
 class VQEFitter(VariationalSolver):
@@ -235,13 +254,14 @@ class VQEFitter(VariationalSolver):
         self.target = target
         self._sol = None
 
-    def cost_function(self, probabilities):
+    def cost_function(self, result):
+        probabilities = result.probability_vector
         return np.sum(np.abs(probabilities - self.target))
 
     def build_circuit(self, args: Iterable[float] = None) -> qiskit.QuantumCircuit:
         qc = qiskit.QuantumCircuit(self.num_qubits)
         efficient_su(qc, self.layers, self.gates, self.entangle_mode, self.final_layer, params=args)
-        # qc.measure_all()
+        qc.measure_all()
         return qc
 
     def plot_histograms(self):

@@ -33,23 +33,23 @@ class AbstractInterferometer(ABC):
         """Adds gates to evolve the initial state in time."""
         pass
 
-    def build_circuit(self, alpha="x", beta="x", gamma="z"):
+    def build_circuit(self, alpha="x", beta="x", gamma="z", index=0):
         qc = qiskit.QuantumCircuit(self.qreg, self.areg, self.creg)
         anc = qc.ancillas[0]
-
+        qreg = self.qreg
         # Initialize ground state
-        self.prepare(qc, qc.qregs[0])
+        self.prepare(qc, qreg)
         qc.barrier()
 
         # Entangle ancilla qubit with work qubits
         qc.h(anc)
-        getattr(qc, "c" + alpha)(anc, qc.qregs[0][0], ctrl_state=0)
+        getattr(qc, "c" + alpha)(anc, qreg[index], ctrl_state=0)
 
         # Evolve state
         self.evolve(qc, qc.qregs[0])
 
         # Entangle ancilla qubit with work qubits
-        getattr(qc, "c" + beta)(anc, qc.qregs[0][0], ctrl_state=1)
+        getattr(qc, "c" + beta)(anc, qreg[index], ctrl_state=1)
         qc.h(anc)
 
         # measure ancilla qubit
@@ -57,22 +57,22 @@ class AbstractInterferometer(ABC):
 
         return qc
 
-    def measure(self, alpha="x", beta="x", basis="z", shots=0):
+    def measure(self, alpha="x", beta="x", basis="z", index=0, shots=0):
         shots = shots or self.shots
-        qc = self.build_circuit(alpha, beta, basis)
+        qc = self.build_circuit(alpha, beta, basis, index)
         return run(qc, shots=shots, gpu=False)
 
-    def measure_xx(self, basis="z"):
-        return self.measure("x", "x", basis).expectation(0)
+    def measure_xx(self, basis="z", index=0):
+        return self.measure("x", "x", basis, index).expectation(0)
 
-    def measure_yy(self, basis="z"):
-        return self.measure("y", "y", basis).expectation(0)
+    def measure_yy(self, basis="z", index=0):
+        return self.measure("y", "y", basis, index).expectation(0)
 
-    def measure_xy(self, basis="z"):
-        return self.measure("x", "y", basis).expectation(0)
+    def measure_xy(self, basis="z", index=0):
+        return self.measure("x", "y", basis, index).expectation(0)
 
-    def measure_yx(self, basis="z"):
-        return self.measure("y", "x", basis).expectation(0)
+    def measure_yx(self, basis="z", index=0):
+        return self.measure("y", "x", basis, index).expectation(0)
 
 
 class TrotterInterferometer(AbstractInterferometer):
@@ -92,15 +92,15 @@ class TrotterInterferometer(AbstractInterferometer):
         for _ in range(self.num_steps):
             qc.append(self._step, qreg[:])
 
-    def measure_imag(self, num_step=0):
+    def measure_imag(self, num_step=0, index=0):
         if num_step:
             self.set_stepnum(num_step)
-        return self.measure_xx(basis="z")
+        return self.measure_xx(basis="z", index=index)
 
-    def measure_gf_imag(self, num_steps):
+    def measure_gf_imag(self, num_steps, index=0):
         gf = np.zeros(num_steps, dtype=np.float64)
         for step in range(num_steps):
             print(f"\rMeasuring: {step}/{num_steps - 1}", end="", flush=True)
-            gf[step] = self.measure_imag(step)
+            gf[step] = self.measure_imag(step, index)
         print()
         return gf

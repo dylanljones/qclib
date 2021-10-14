@@ -141,8 +141,11 @@ def init_backend(backend: Union[str, qiskit.providers.Backend] = None,
 
 
 def transpile(circuits, backend):
-    for qc in circuits:
-        ensure_measurement(qc)
+    if isinstance(circuits, qiskit.QuantumCircuit):
+        ensure_measurement(circuits)
+    else:
+        for qc in circuits:
+            ensure_measurement(qc)
     return qiskit.transpile(circuits, backend)
 
 
