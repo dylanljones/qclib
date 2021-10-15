@@ -10,7 +10,7 @@ import scipy.linalg as la
 import matplotlib.pyplot as plt
 import qiskit
 from qclib import PauliOperators, abs2, fill_diagonal, get_ground_state, compute_ground_state, libary
-from qclib.circuit import QuantumCircuit
+from qclib.circuit import QuantumCircuit, init_backend
 from qclib.vqe import VariationalSolver, VQEFitter
 from qclib import jordan_wigner as jw
 
@@ -110,25 +110,22 @@ def measure_greens(num_sites, eps, hop, num_steps, dt, shots=1028, index=0, xy=F
     step_circ = trotter_step_circuit(num_sites, eps, hop, dt, xy=xy)
 
     # Run interferometer and measure gf
-    inter = libary.TrotterInterferometer(init_circ, step_circ, shots=shots)
+    backend = init_backend(gpu=True)
+    inter = libary.TrotterInterferometer(init_circ, step_circ, shots=shots, backend=backend)
     return inter.measure_gf_imag(num_steps, index=1)
 
 
 def main():
-    num_sites = 2
+    num_sites = 5
     eps, hop = 0.0, 1.0
     tmax, dt = 20, 0.2
-    shots = 4 * 1028
+    shots = 10 * 1028
 
     num_steps = int(tmax / dt) + 1
     times = np.arange(0, tmax + 1e-5, dt)
 
-    for sites in [3, 4]:
-        gft_imag = measure_greens(sites, eps, hop, num_steps, dt, shots, index=0, xy=True)
-        plt.plot(times, gft_imag, label=f"Sites: {sites} (XY)")
-
-        gft_imag = measure_greens(sites, eps, hop, num_steps, dt, shots, index=0, xy=False)
-        plt.plot(times, gft_imag, label=f"Sites: {sites} (Rz)")
+    gft_imag = measure_greens(num_sites, eps, hop, num_steps, dt, shots, index=0, xy=False)
+    plt.plot(times, gft_imag, label=f"Sites: {num_sites} (Rz)")
 
     plt.legend()
     plt.show()

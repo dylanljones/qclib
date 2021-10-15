@@ -77,10 +77,10 @@ class AbstractInterferometer(ABC):
 
 class TrotterInterferometer(AbstractInterferometer):
 
-    def __init__(self, init_circ, trotter_step_circ, shots=1028, num_steps=0):
+    def __init__(self, init_circ, trotter_step_circ, num_steps=0, shots=1028, backend=None):
         num_qubits = init_circ.num_qubits
         assert num_qubits == trotter_step_circ.num_qubits
-        super().__init__(num_qubits, num_steps, shots)
+        super().__init__(num_qubits, num_steps, shots, backend)
 
         self._init = init_circ.to_instruction()
         self._step = trotter_step_circ.to_instruction()

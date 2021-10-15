@@ -46,6 +46,7 @@ def su_layer(qc, gates, param_iter=None, qubits=None):
 
 
 def efficient_su(qc, layers, gates, entangle="linear", final=True, params=None, qubits=None):
+    gates = list(gates.split(" ")) if isinstance(gates, str) else list(gates)
     param_iter = None if params is None else iter(params)
     for _ in range(layers):
         su_layer(qc, gates, param_iter, qubits)
