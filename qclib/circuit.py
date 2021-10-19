@@ -14,6 +14,15 @@ from qiskit.circuit import QuantumRegister, ClassicalRegister, AncillaRegister
 from .visualization import plot_histogram
 
 
+def param_generator(name="θ"):
+    count = 0
+    while True:
+        param_name = f"${name}_{count}$"
+        p = qiskit.circuit.Parameter(param_name)
+        count += 1
+        yield p
+
+
 class Result(Mapping):
 
     MAPPING = np.array([+1, -1])
