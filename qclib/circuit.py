@@ -9,8 +9,8 @@ import numpy as np
 from collections.abc import Mapping
 from typing import Iterator, Dict, Union, Sequence
 import matplotlib.pyplot as plt
-from qiskit.circuit import Qubit, Clbit, AncillaQubit
-from qiskit.circuit import QuantumRegister, ClassicalRegister, AncillaRegister
+import mthree
+import mthree.utils
 from .visualization import plot_histogram
 
 
@@ -270,3 +270,93 @@ class QuantumCircuit(qiskit.QuantumCircuit):
         self.draw("mpl", **kwargs)
         if show:
             plt.show()
+
+
+# =========================================================================
+# Expectation values
+# =========================================================================
+
+
+def _opstr_to_meas_circ(op_strings):
+    """Constructs circuits with the correct post-rotations for measurements.
+
+    Parameters
+    ----------
+    op_strings : list of str
+        List of strings representing the operators needed for measurements.
+
+    Returns
+    -------
+    circs : list of qiskit.QuantumCircuit
+        List of circuits for measurement post-rotations.
+    """
+    num_qubits = len(op_strings[0])
+    circs = []
+    for op in op_strings:
+        qc = qiskit.QuantumCircuit(num_qubits)
+        for idx, item in enumerate(op):
+            if item == 'X':
+                qc.h(num_qubits-idx-1)
+            elif item == 'Y':
+                qc.sdg(num_qubits-idx-1)
+                qc.h(num_qubits-idx-1)
+        circs.append(qc)
+    return circs
+
+
+def _prepare_circuits(backend, ham, ansatz_circ):
+    # Split the Hamiltonian into two arrays, one for coefficients, the other for operator strings
+    coeffs = np.array([item[0] for item in ham], dtype=complex)
+    op_strings = [item[1] for item in ham]
+
+    # Construct the measurement circuits with the correct single-qubit rotation gates.
+    meas_circs = _opstr_to_meas_circ(op_strings)
+
+    # When computing the expectation value for the energy, we need to know if we
+    # evaluate a Z measurement or and identity measurement.
+    # Here we take and X and Y operator in the strings and convert it to a Z since
+    # we added the rotations with the meas_circs.
+    meas_strings = [string.replace('X', 'Z').replace('Y', 'Z') for string in op_strings]
+
+    # Take the ansatz circuits, add the single-qubit measurement basis rotations from
+    # meas_circs, and finally append the measurements themselves.
+    full_circs = [ansatz_circ.compose(mcirc).measure_all(inplace=False) for mcirc in meas_circs]
+
+    # Because we are in general targeting a real quantum system, our circuits must be transpiled
+    # to match the system topology and, hopefully, optimize them.
+    # Here we will set the transpiler to the most optimal settings where 'sabre' layout and
+    # routing are used, along with full O3 optimization.
+
+    # This works around a bug in Qiskit where Sabre routing fails for simulators (Issue #7098)
+    trans_dict = {}
+    if not backend.configuration().simulator:
+        trans_dict = {'layout_method': 'sabre', 'routing_method': 'sabre'}
+    trans_circs = qiskit.transpile(full_circs, backend, optimization_level=3, **trans_dict)
+
+    return coeffs, meas_strings, trans_circs
+
+
+def _measure_expvals(backend, trans_circs, exp_ops, params, shots, use_meas_mitigation=False):
+    # Attach (bind) parameters in params vector to the transpiled circuits.
+    bound_circs = [circ.bind_parameters(params) for circ in trans_circs]
+    # Submit the job and get the resultant counts back
+    counts = backend.run(bound_circs, shots=shots).result().get_counts()
+
+    # If using measurement mitigation we need to find out which physical qubits our transpiled
+    # circuits actually measure, construct a mitigation object targeting our backend, and
+    # finally calibrate our mitgation by running calibration circuits on the backend.
+    if use_meas_mitigation:
+        maps = mthree.utils.final_measurement_mapping(trans_circs)
+        mit = mthree.M3Mitigation(backend)
+        mit.cals_from_system(maps)
+        quasi_collection = mit.apply_correction(counts, maps)
+        expvals = quasi_collection.expval(exp_ops)
+    else:
+        expvals = mthree.utils.expval(counts, exp_ops)
+    return expvals
+
+
+def measure_expval(params, ham, ansatz, backend, shots):
+    coeffs, meas_strings, trans_circs = _prepare_circuits(backend, ham, ansatz)
+    expvals = _measure_expvals(backend, trans_circs, meas_strings, params, shots)
+    return np.sum(coeffs * expvals).real
